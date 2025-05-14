@@ -38,8 +38,9 @@ const getUserChat = async (req, res) => {
     }
 }
 
-const getUser = async (req, res) => {
+const getUsers = async (req, res) => {
     try {
+        console.log(`LOLOLO`)
         const user = await userTable.findAll({
             raw: true
         });
@@ -53,5 +54,5 @@ const getUser = async (req, res) => {
 module.exports = {
     getChat,
     getUserChat,
-    getUser
+    getUsers
 }

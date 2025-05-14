@@ -8,6 +8,8 @@ const server = http.createServer(app);
 const chatRoute = require('./src/router/chat');
 
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 initSocket(server);
 

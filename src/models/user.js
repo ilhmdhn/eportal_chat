@@ -23,6 +23,9 @@ module.exports = db.define('user', {
     },
     is_online: {
         type: DataTypes.ENUM('0', '1')
+    },
+    outlet: {
+        type: DataTypes.STRING
     }
 }, {
     freezeTableName: true
