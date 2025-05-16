@@ -105,4 +105,22 @@ const sendMessageToUser = async (nip, body) => {
     }
 };
 
-module.exports = { initSocket, sendMessageToUser };
+const updateDashboardUser = async (nip, data) => {
+    const targetSocketIdTemp = await userTable.findOne({
+        where: {
+            nip: nip
+        },
+        raw: true
+    });
+    const targetSocketId = targetSocketIdTemp.socket_id;
+
+    if (targetSocketId) {
+        console.log(`SEND DASHBOARD ${JSON.stringify(data)}`)
+        io.to(targetSocketId).emit("CHAT-DASHBOARD", data);
+
+    } else {
+        console.log(`⚠️ User ${userId} is not online`);
+    }
+}
+
+module.exports = { initSocket, sendMessageToUser, updateDashboardUser };

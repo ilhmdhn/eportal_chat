@@ -3,13 +3,13 @@ const chatTable = require('../models/chat');
 const response = require('../tool/response');
 const { Op } = require('sequelize');
 const db = require('../tool/db');
-const { sendMessageToUser } = require('../tool/socket');
+const { sendMessageToUser, updateDashboardUser } = require('../tool/socket');
+
 
 const getDashboardChat = async (req, res) => {
     try {
-
-        const userNip = req.query.nip;
-        const page = req.query.page;
+        const userNip = req.user.nip;
+        const page = parseInt(req.query.page) || 1;
         const pageSize = 10;
         const offset = (page - 1) * pageSize;
 
@@ -32,6 +32,7 @@ const getDashboardChat = async (req, res) => {
                 c.content,
                 c.time,
                 c.id,
+                c.readed,
                 IFNULL(unread.unread_count, 0) AS unread_count
 
             FROM 
@@ -45,49 +46,53 @@ const getDashboardChat = async (req, res) => {
                 FROM 
                     chat
                 WHERE 
-                    nip = ${userNip} OR target = ${userNip}
+                    nip = :userNip OR target = :userNip
                 GROUP BY 
                     user1, user2
-            ) last_msg ON LEAST(c.nip, c.target) = last_msg.user1 AND
-            GREATEST(c.nip, c.target) = last_msg.user2 AND
-            c.time = last_msg.max_time
+            ) last_msg ON 
+                LEAST(c.nip, c.target) = last_msg.user1 AND
+                GREATEST(c.nip, c.target) = last_msg.user2 AND
+                c.time = last_msg.max_time
 
             LEFT JOIN (
               SELECT
                 LEAST(nip, target) AS user1,
                 GREATEST(nip, target) AS user2,
-                        SUM(CASE WHEN readed = '0' AND target = ${userNip} THEN 1 ELSE 0 END) AS unread_count
+                SUM(CASE WHEN readed = '0' AND target = :userNip THEN 1 ELSE 0 END) AS unread_count
               FROM 
                 chat
               WHERE 
-                nip = ${userNip} OR target = ${userNip}
+                nip = :userNip OR target = :userNip
               GROUP BY 
                 user1, user2
             ) unread ON
-            LEAST(c.nip, c.target) = unread.user1 AND
-            GREATEST(c.nip, c.target) = unread.user2
+                LEAST(c.nip, c.target) = unread.user1 AND
+                GREATEST(c.nip, c.target) = unread.user2
 
-            LEFT JOIN users u1 ON c.nip = u1.nip
-            LEFT JOIN users u2 ON c.target = u2.nip
+            LEFT JOIN user u1 ON c.nip = u1.nip
+            LEFT JOIN user u2 ON c.target = u2.nip
 
             ORDER BY c.time DESC
-            LIMIT ${limit} OFFSET ${offset};`,
+            LIMIT :limit OFFSET :offset;`,
             {
-                replacements: { userNip, limit: pageSize, offset },
+                replacements: {
+                    userNip,
+                    limit: pageSize,
+                    offset
+                },
                 type: db.QueryTypes.SELECT
             }
         );
 
         res.send(response(true, chats));
-
     } catch (error) {
         res.status(500).send(response(false, null, error.message));
     }
-}
+};
 
 const getUserChat = async (req, res) => {
     try {
-        const user = req.query.user;
+        const user = req.user.nip;
         const target = req.query.target;
         const page = req.query.page || 1;
         const limit = 20;
@@ -143,7 +148,7 @@ const getUsers = async (req, res) => {
 
 const postChat = async (req, res) => {
     try {
-        const nip = req.body.nip;
+        const nip = req.user.nip;
         const target = req.body.target;
         const content = req.body.content;
         const id = req.body.id;
@@ -154,14 +159,63 @@ const postChat = async (req, res) => {
             id: id,
             readed: '0'
         });
+
         const chat = await chatTable.findOne({
             where: {
                 id: id
             },
             raw: true
         });
+
         res.send(response(true, null, 'SUCCESS'));
+        const updateDashboard = await db.query(
+            `SELECT
+    c.nip,
+    u1.name AS nip_name,
+    u1.photo AS nip_photo,
+    u1.outlet AS nip_outlet,
+    u1.last_online AS nip_last_online,
+    u1.is_online AS nip_is_online,
+
+    c.target,
+    u2.name AS target_name,
+    u2.photo AS target_photo,
+    u2.outlet AS target_outlet,
+    u2.last_online AS target_last_online,
+    u2.is_online AS target_is_online,
+
+    c.content,
+    c.time,
+    c.id,
+    c.readed,
+    IFNULL(unread.unread_count, 0) AS unread_count
+
+FROM
+    chat c
+
+LEFT JOIN user u1 ON c.nip = u1.nip
+LEFT JOIN user u2 ON c.target = u2.nip
+
+LEFT JOIN (
+    SELECT
+        LEAST(nip, target) AS user1,
+        GREATEST(nip, target) AS user2,
+        SUM(CASE WHEN readed = '0' AND target = :nip THEN 1 ELSE 0 END) AS unread_count
+    FROM chat
+    GROUP BY user1, user2
+) unread ON
+    LEAST(c.nip, c.target) = unread.user1 AND
+    GREATEST(c.nip, c.target) = unread.user2
+
+WHERE c.id = :id
+LIMIT 1;`,
+            {
+                replacements: { id, nip },
+                type: db.QueryTypes.SELECT
+            }
+        );
         sendMessageToUser(target, chat);
+        updateDashboardUser(target, updateDashboard[0]);
     } catch (err) {
         console.error(`
             Error
