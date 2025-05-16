@@ -84,7 +84,7 @@ const employeeOff = async (nip) => {
     }
 }
 
-const sendMessageToUser = async (nip, message) => {
+const sendMessageToUser = async (nip, body) => {
     const targetSocketIdTemp = await userTable.findOne({
         where: {
             nip: nip
@@ -92,16 +92,14 @@ const sendMessageToUser = async (nip, message) => {
         raw: true
     });
     const targetSocketId = targetSocketIdTemp.socket_id;
+
     if (targetSocketId) {
-        io.to(targetSocketId).emit("chat", {
-            sender: 'Agus',
-            message: 'ngarit'
+        console.log(`SEND SOCKET TO ${targetSocketId} ${nip}`)
+        io.to(targetSocketId).emit("CHAT", {
+            sender: 'No Name',
+            body: body
         });
-        // io.emit('chat', {
-        //     sender: 'NGARIT',
-        //     message: new Date().toISOString()
-        // },);
-        console.log(`📤 Message sent to ${nip} (socket ID: ${targetSocketId})`);
+
     } else {
         console.log(`⚠️ User ${userId} is not online`);
     }

@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Sequelize } = require('sequelize');
 const db = require('../tool/db');
 
 module.exports = db.define('chat', {
@@ -12,7 +12,8 @@ module.exports = db.define('chat', {
     },
     time: {
         type: DataTypes.DATE,
-        primaryKey: true
+        primaryKey: true,
+        defaultValue: Sequelize.NOW
     },
     content: {
         type: DataTypes.TEXT,
